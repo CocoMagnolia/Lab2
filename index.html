@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Twitter Follow Stats</title>
+<style>
+  body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; max-width: 720px; margin: 48px auto; padding: 0 20px; color: #1f2328; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .sub { color: #656d76; font-size: 13px; margin-bottom: 24px; }
+  .bar { display: flex; gap: 8px; margin-bottom: 20px; }
+  input { flex: 1; padding: 9px 12px; border: 1px solid #d0d7de; border-radius: 6px; font-size: 14px; }
+  button { padding: 9px 18px; border: 1px solid #1f883d; background: #1f883d; color: #fff; border-radius: 6px; font-size: 14px; cursor: pointer; }
+  button:hover { background: #1a7f37; }
+  button.ghost { background: #f6f8fa; color: #1f2328; border-color: #d0d7de; }
+  #out { background: #f6f8fa; border: 1px solid #d0d7de; border-radius: 8px; padding: 18px 20px; font-family: ui-monospace, Consolas, monospace; font-size: 14px; line-height: 1.9; white-space: pre-wrap; min-height: 120px; }
+  .u { color: #0969da; font-weight: 600; }
+  .err { color: #cf222e; }
+</style>
+</head>
+<body>
+  <h1>Twitter User Follower Statistics</h1>
+  <div class="sub">Followers = users following this account &nbsp;|&nbsp; Followees = accounts this user follows</div>
+
+  <div class="bar">
+    <input id="uid" placeholder="Enter UserID, e.g. 214328887 (comma separated for multiple)" />
+    <button onclick="query()">Search</button>
+    <button class="ghost" onclick="show(DEFAULT)">Default</button>
+  </div>
+
+  <pre id="out">Loading…</pre>
+
+<script>
+
+  const DEFAULT = ['214328887', '107830991'];
+  const BASES = ['', 'http://localhost:5000'];
+
+  async function callApi(path) {
+    let lastErr;
+    for (const base of BASES) {
+      try {
+        const r = await fetch(base + path);
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return await r.json();
+      } catch (e) { lastErr = e; }
+    }
+    throw lastErr;
+  }
+
+  function render(rows) {
+    const out = document.getElementById('out');
+    if (!rows.length) { out.innerHTML = '<span class="err">No data. Run analyze.py first.</span>'; return; }
+    out.innerHTML = rows.map(([u, s]) =>
+      `<span class="u">${u}</span> has <b>${s.followers}</b> followers\n` +
+      `<span class="u">${u}</span> has <b>${s.followees}</b> followees`
+    ).join('\n');
+  }
+
+  async function show(users) {
+    const q = users && users.length ? '?users=' + users.join(',') : '';
+    try {
+      const d = await callApi('/stats' + q);
+      const rows = Object.entries(d.results || {});
+      if (d.missing && d.missing.length) rows.push(...d.missing.map(u => [u, {followers: 'n/a', followees: 'n/a'}]));
+      render(rows);
+    } catch (e) {
+      document.getElementById('out').innerHTML = '<span class="err">Backend unreachable: ' + e.message + '</span>';
+    }
+  }
+
+  function query() {
+    const raw = document.getElementById('uid').value.trim();
+    const ids = raw ? raw.split(/[,\s]+/).filter(Boolean) : DEFAULT;
+    show(ids);
+  }
+
+  document.getElementById('uid').addEventListener('keydown', e => { if (e.key === 'Enter') query(); });
+  show(DEFAULT);   // 默认展示题目要求的两个用户
+</script>
+</body>
+</html>
